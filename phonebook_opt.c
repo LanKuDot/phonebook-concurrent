@@ -46,22 +46,29 @@ void append(void *arg)
 {
     struct timespec start, end;
     double cpu_time;
+    int count = 0;
 
     clock_gettime(CLOCK_REALTIME, &start);
 
     thread_arg *t_arg = (thread_arg *) arg;
 
-    int count = 0;
-    entry *j = t_arg->lEntryPool_begin;
-    for (char *i = t_arg->data_begin; i < t_arg->data_end;
-            i += MAX_LAST_NAME_SIZE * t_arg->numOfThread,
-            j += t_arg->numOfThread, count++) {
+    entry *cur_entry = t_arg->lEntryPool_begin;
+    // Put the first element to the first entry
+    char *cur_data = t_arg->data_begin;
+    cur_entry->lastName = cur_data;
+    cur_entry->pNext    = NULL;
+    cur_entry->dtl      = NULL;
+    ++cur_entry;
+    // Start appending the entry from the second one.
+    for (cur_data += MAX_LAST_NAME_SIZE;
+            cur_data < t_arg->data_end;
+            ++cur_entry, cur_data += MAX_LAST_NAME_SIZE, ++count) {
+        cur_entry->lastName = cur_data;
+        cur_entry->pNext    = NULL;
+        cur_entry->dtl      = NULL;
         // Append the new at the end of the local linked list.
-        t_arg->lEntry_tail->pNext = j;
+        t_arg->lEntry_tail->pNext = cur_entry;
         t_arg->lEntry_tail = t_arg->lEntry_tail->pNext;
-        t_arg->lEntry_tail->lastName = i;
-        t_arg->lEntry_tail->pNext = NULL;
-        t_arg->lEntry_tail->dtl = NULL;
         dprintf("thread %d t_argend string = %s\n",
                 t_arg->threadID, t_arg->lEntry_tail->lastName);
     }

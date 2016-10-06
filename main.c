@@ -77,22 +77,35 @@ int main(int argc, char *argv[])
     entry *entry_pool;
     pthread_t threads[THREAD_NUM];
     thread_arg *thread_args[THREAD_NUM];
+    int num_of_entry, entry_per_thread;
 
     /* Start timing */
     clock_gettime(CLOCK_REALTIME, &start);
     /* Allocate the resource at first */
     map = mmap(NULL, file_size, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, 0);
     assert(map && "mmap error");
-    entry_pool = (entry *)malloc(sizeof(entry) *
-                                 file_size / MAX_LAST_NAME_SIZE);
+
+    num_of_entry = file_size / MAX_LAST_NAME_SIZE;
+    entry_pool = (entry *)malloc(sizeof(entry) * num_of_entry);
     assert(entry_pool && "entry_pool error");
 
     /* Prepare for multi-threading */
     pthread_setconcurrency(THREAD_NUM + 1);
-    for (int i = 0; i < THREAD_NUM; i++)
-        // Created by malloc, remeber to free them.
-        thread_args[i] = createThead_arg(map + MAX_LAST_NAME_SIZE * i, map + file_size, i,
-                                         THREAD_NUM, entry_pool + i);
+    entry_per_thread = num_of_entry / THREAD_NUM + 1;
+    for (int i = 0; i < THREAD_NUM; i++) {
+        char *data_begin, *data_end;
+
+        data_begin = map + entry_per_thread * i * MAX_LAST_NAME_SIZE;
+        // For the last thread, directly give the end of the mapped memory.
+        if (i == THREAD_NUM - 1)
+            data_end = map + file_size;
+        else
+            data_end = map + entry_per_thread * (i+1) * MAX_LAST_NAME_SIZE;
+
+        thread_args[i] = createThead_arg(data_begin, data_end,
+                                         i, THREAD_NUM,
+                                         entry_pool + entry_per_thread * i);
+    }
     /* Deliver the jobs to all threads and wait for completing */
     clock_gettime(CLOCK_REALTIME, &mid);
     for (int i = 0; i < THREAD_NUM; i++)
@@ -104,11 +117,11 @@ int main(int argc, char *argv[])
     /* Connect the linked list of each thread */
     for (int i = 0; i < THREAD_NUM; i++) {
         if (i == 0) {
-            pHead = thread_args[i]->lEntry_head->pNext;
+            pHead = thread_args[i]->lEntry_head;
             dprintf("Connect %d head string %s %p\n", i,
                     pHead->lastName, thread_args[i]->data_begin);
         } else {
-            e->pNext = thread_args[i]->lEntry_head->pNext;
+            e->pNext = thread_args[i]->lEntry_head;
             dprintf("Connect %d head string %s %p\n", i,
                     e->pNext->lastName, thread_args[i]->data_begin);
         }
